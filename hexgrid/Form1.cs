@@ -3,6 +3,7 @@
 //using GeoLibrary.Model;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
+using NetTopologySuite.CoordinateSystems;
 using NetTopologySuite.IO;
 using Newtonsoft.Json;
 using System;
@@ -133,6 +134,32 @@ namespace hexgrid
             yield return new CoordDist { Point = new Point(new Coordinate(20000, 10392)), Distance = 0 };
         }
 
+        private Coordinate[] hexRing(int width, Coordinate[] locations) {
+            throw new NotImplementedException();
+        }
+        private (Coordinate, Coordinate) getCenterPointsHexagonCandidates(Coordinate location, double xw, double a) {
+            var x = location.X / xw;
+            var y = location.Y / a;
+            var x1 = Math.Truncate(x);
+            var x2 = Math.Ceiling(x);
+            var y1 = Math.Truncate(y);
+            var y2 = Math.Ceiling(y);
+            //centerpoints van de hexagons liggen alleen op coordinaten waarbij ze allebei even zijn of allebei oneven
+            //er vallen er altijd twee af
+            Coordinate xy1 = null;
+            Coordinate xy2 = null;
+            if ((x1 % 2) == 0)
+            {
+                xy1 = new Coordinate(x1, ((y1 % 2) == 0) ? y1 : y2);
+                xy2 = new Coordinate(x2, ((y1 % 2) == 0) ? y2 : y1);
+            }
+            else
+            {
+                xy1 = new Coordinate(x2, ((y1 % 2) == 0) ? y1 : y2);
+                xy2 = new Coordinate(x1, ((y1 % 2) == 0) ? y2 : y1);
+            }
+            return (xy1, xy2);
+        }
         private void DoIt()
         {
             //w is de lengte van een hexagon zijde in meters. Het is dezelfde lengte als de radius van een hexagon
@@ -143,43 +170,21 @@ namespace hexgrid
 
             // volgende kolom hexagons ligt in de holte van de 1ste kolom hexagon, ze grijpen in elkaar. Daarom ligt centerpoint.X de volgende kolom hexagons niet
             // op 2 * w maar op 3/4 * 2 * w
-            var xw = 3 / 4 * 2 * w;
+            double g = (3.0 / 4.0);
+            var xw = g * (2 * w);
             //van een locatie wordt de x gedeeld door 2 keer w, y gedeeld door a.
             //omdat we liggende hexagons hebben (vlakke kant van hexagon boven)
 
-            var location = new Coordinate(82083, 436727);
-            var x = location.X / (2 * w);
-            var y = location.Y / a;
-            var x1 = Math.Truncate(x);
-            var x2 = Math.Ceiling(x);
-            var y1 = Math.Truncate(y);
-            var y2 = Math.Ceiling(y);
-            //centerpoints van de hexagons liggen alleen op coordinaten waarbij ze allebei even zijn of allebei oneven
-            //er vallen er altijd twee af
-            Coordinate xy1 = null;
-            Coordinate xy2 = null;
-
-            if ((x1 + y1) % 2 == 0)
-            {
-                xy1 = new Coordinate(x1, y1);
-            }
-            if ((x1 + y2) % 2 == 0)
-            {
-                xy1 = new Coordinate(x1, y2);
-            }
-            if ((x2 + y1) % 2 == 0)
-            {
-                xy2 = new Coordinate(x2, y1);
-            }
-            if ((x2 + y2) % 2 == 0)
-            {
-                xy2 = new Coordinate(x2, y2);
-            }
+            //  var location = new Coordinate(82083, 436727);
+            var location = new Coordinate(83393, 436442);
+            //var location = new Coordinate(80116, 435809);
+            var (xy1, xy2) = getCenterPointsHexagonCandidates(location, xw, a);
             //vertaal naar echte coordinaten
             if (xy1 != null && xy2 != null)
             {
-                var t1 = new Coordinate(((xy1.X - 1) * 2 * w) + xw, xy1.Y * a);
-                var t2 = new Coordinate(((xy2.X - 1) * 2 * w) + xw, xy2.Y * a);
+               // xy2 = new Coordinate(12, 126);
+                var t1 = new Coordinate((xy1.X * xw), xy1.Y * a);
+                var t2 = new Coordinate((xy2.X * xw), xy2.Y * a);
                 var cd1 = new CoordDist { Point = new Point(t1), Distance = 0 };
                 var cd2 = new CoordDist { Point = new Point(t2), Distance = 0 };
                 var mijPoint = new Point(location);
@@ -197,16 +202,21 @@ namespace hexgrid
                 {
                     arrexteriorring[v] = arraytje[v];                    
                 }
-                var geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
+               // var geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
                 var ring = new LinearRing(arrexteriorring);
                 var polygon = new Polygon(ring);
+                var attributes = new AttributesTable();
+                attributes.Add("something", new { dikke= "deur"});
+                IFeature feature = new Feature(polygon, attributes);
+                FeatureCollection target = new FeatureCollection();
+                target.Add(feature);
                 string geoJson2;
 
                 var serializer2 = GeoJsonSerializer.Create();
                 using (var stringWriter = new StringWriter())
                 using (var jsonWriter = new JsonTextWriter(stringWriter))
                 {
-                    serializer2.Serialize(jsonWriter, polygon);
+                    serializer2.Serialize(jsonWriter, target);
                     geoJson2 = stringWriter.ToString();
                 }
                 MessageBox.Show(geoJson2.ToString());
